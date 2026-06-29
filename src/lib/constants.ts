@@ -1,19 +1,16 @@
 /**
  * ARCOIN — constants.ts
  * ALL ADDRESSES VERIFIED FROM OFFICIAL SOURCES
- * Sources:
- *   Arc Official Docs:  https://docs.arc.io/arc/references/contract-addresses
- *   APEXISWAP Docs:     https://www.apexiswap.com/docs
- *   Circle Docs:        https://developers.circle.com/w3s/reference
  * Last verified: June 2026
  *
- * DECIMAL RULE (DO NOT CHANGE):
- *   Native USDC gas = 18 decimals (internal EVM layer — NEVER use in app)
- *   USDC ERC-20 interface = 6 decimals (ALWAYS use this in all operations)
+ * AUTH: Circle Programmable Wallets (User-Controlled)
+ *   CIRCLE_API_KEY              → server-side (API routes only)
+ *   NEXT_PUBLIC_CIRCLE_APP_ID   → KIT_KEY — browser W3S SDK init
+ *   NEXT_PUBLIC_CIRCLE_CLIENT_KEY → TEST_CLIENT_KEY — browser SDK
  *
- * AUTH: Circle Developer-Controlled Wallets (no Privy, no WalletConnect)
- *   Wallets created server-side via CIRCLE_API_KEY + CIRCLE_ENTITY_SECRET
- *   Frontend reads wallet state from /api/wallet/* routes
+ * DECIMAL RULE:
+ *   USDC ERC-20 = 6 decimals  ← ALWAYS use this
+ *   Native gas  = 18 decimals ← NEVER use in app logic
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -22,21 +19,22 @@
 export const ARC_CHAIN_ID = 5042002 as const
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CIRCLE DEVELOPER-CONTROLLED WALLETS
-// Env vars (server-side only — never NEXT_PUBLIC_):
-//   CIRCLE_API_KEY        — from console.circle.com
-//   CIRCLE_ENTITY_SECRET  — from console.circle.com
-//   CIRCLE_WALLET_SET_ID  — created once via scripts/create-wallet-set.mjs
-//   CIRCLE_ENV            — "sandbox" | "production"
+// CIRCLE PROGRAMMABLE WALLETS — key map
+//
+// | Your Key Name   | .env.local variable              | Used in        |
+// |-----------------|----------------------------------|----------------|
+// | TEST_API_KEY    | CIRCLE_API_KEY                   | API routes     |
+// | KIT_KEY         | NEXT_PUBLIC_CIRCLE_APP_ID        | Browser SDK    |
+// | TEST_CLIENT_KEY | NEXT_PUBLIC_CIRCLE_CLIENT_KEY    | Browser SDK    |
 // ─────────────────────────────────────────────────────────────────────────────
 export const CIRCLE = {
-  baseUrlSandbox:    "https://api.circle.com/v1/w3s",
-  baseUrlProduction: "https://api.circle.com/v1/w3s",
-  blockchain:        "ARC-TESTNET",  // Circle's blockchain identifier for Arc
-  tokenId_USDC:      "USDC",         // Circle token ID for USDC on Arc Testnet
-  faucetUrl:         "https://faucet.circle.com",
-  consoleUrl:        "https://console.circle.com",
-  docsUrl:           "https://developers.circle.com/w3s/reference",
+  apiBaseUrl:     "https://api.circle.com/v1/w3s",
+  blockchain:     "ARC-TESTNET",
+  tokenId_USDC:   "USDC",
+  faucetUrl:      "https://faucet.circle.com",
+  consoleUrl:     "https://console.circle.com",
+  docsUrl:        "https://developers.circle.com/w3s/reference",
+  sdnPackage:     "@circle-fin/w3s-pw-web-sdk",
 } as const
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -45,7 +43,7 @@ export const CIRCLE = {
 export const TOKENS = {
   USDC: {
     address:  "0x3600000000000000000000000000000000000000" as `0x${string}`,
-    decimals: 6,        // ERC-20 interface — NEVER use 18
+    decimals: 6,
     symbol:   "USDC",
     name:     "USD Coin",
     logoUrl:  "https://cryptologos.cc/logos/usd-coin-usdc-logo.svg",
@@ -60,7 +58,7 @@ export const TOKENS = {
 } as const
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DEX: APEXISWAP — PRIMARY SWAP ENGINE
+// DEX: APEXISWAP
 // ─────────────────────────────────────────────────────────────────────────────
 export const APEXISWAP = {
   Router:       "0x437b1aBf6e5a69548849b15EC35f83A73Fa1E28F" as `0x${string}`,
@@ -73,7 +71,7 @@ export const APEXISWAP = {
 } as const
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CIRCLE CROSSCHAIN — CCTP BRIDGE (Domain 26 = Arc Testnet)
+// CIRCLE CCTP BRIDGE (Domain 26 = Arc Testnet)
 // ─────────────────────────────────────────────────────────────────────────────
 export const CCTP = {
   TokenMessengerV2:     "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA" as `0x${string}`,
@@ -83,7 +81,7 @@ export const CCTP = {
 } as const
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CIRCLE GATEWAY — Chain-abstracted USDC
+// CIRCLE GATEWAY
 // ─────────────────────────────────────────────────────────────────────────────
 export const GATEWAY = {
   GatewayWallet: "0x0077777d7EBA4688BDeF3E311b846F25870A19B9" as `0x${string}`,
@@ -91,34 +89,34 @@ export const GATEWAY = {
 } as const
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STABLEFX — USDC ↔ EURC (Circle official FX engine)
+// STABLEFX — USDC ↔ EURC
 // ─────────────────────────────────────────────────────────────────────────────
 export const STABLEFX = {
   FxEscrow: "0x867650F5eAe8df91445971f14d89fd84F0C9a9f8" as `0x${string}`,
 } as const
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ETHEREUM STANDARD UTILS — deployed on Arc
+// ETHEREUM STANDARD UTILS
 // ─────────────────────────────────────────────────────────────────────────────
 export const UTILS = {
-  Permit2:         "0x000000000022D473030F116dDEE9F6B43aC78BA3" as `0x${string}`,
-  Multicall3:      "0xcA11bde05977b3631167028862bE2a173976CA11" as `0x${string}`,
-  Multicall3From:  "0x522fAf9A91c41c443c66765030741e4AaCe147D0" as `0x${string}`,
-  Memo:            "0x5294E9927c3306DcBaDb03fe70b92e01cCede505" as `0x${string}`,
+  Permit2:        "0x000000000022D473030F116dDEE9F6B43aC78BA3" as `0x${string}`,
+  Multicall3:     "0xcA11bde05977b3631167028862bE2a173976CA11" as `0x${string}`,
+  Multicall3From: "0x522fAf9A91c41c443c66765030741e4AaCe147D0" as `0x${string}`,
+  Memo:           "0x5294E9927c3306DcBaDb03fe70b92e01cCede505" as `0x${string}`,
 } as const
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ARCOIN CUSTOM CONTRACTS (filled by post-deploy-patch.ts after deployment)
+// ARCOIN CONTRACTS (auto-filled by post-deploy-patch.ts)
 // ─────────────────────────────────────────────────────────────────────────────
 export const ARCOIN_CONTRACTS = {
-  PaymentRouter: "" as `0x${string}`,  // ArcoinPaymentRouter.sol
-  Registry:      "" as `0x${string}`,  // ArcID registry
-  Treasury:      "" as `0x${string}`,  // ArcoinTreasury.sol
-  Escrow:        "" as `0x${string}`,  // Phase 3
+  PaymentRouter: "" as `0x${string}`,
+  Registry:      "" as `0x${string}`,
+  Treasury:      "" as `0x${string}`,
+  Escrow:        "" as `0x${string}`,
 } as const
 
 // ─────────────────────────────────────────────────────────────────────────────
-// EXPLORER URLs
+// EXPLORER
 // ─────────────────────────────────────────────────────────────────────────────
 export const EXPLORER = {
   primary:    "https://atlas.blockscout.com",
@@ -129,17 +127,16 @@ export const EXPLORER = {
 } as const
 
 // ─────────────────────────────────────────────────────────────────────────────
-// RPC ENDPOINTS
+// RPC
 // ─────────────────────────────────────────────────────────────────────────────
 export const RPC = {
   primary:   "https://rpc.testnet.arc.network",
   alchemy:   "https://arc-testnet.g.alchemy.com/v2",
   thirdweb:  "https://5042002.rpc.thirdweb.com",
-  quicknode: "",
 } as const
 
 // ─────────────────────────────────────────────────────────────────────────────
-// APP CONFIG
+// APP
 // ─────────────────────────────────────────────────────────────────────────────
 export const APP = {
   name:             "Arcoin",
@@ -150,18 +147,18 @@ export const APP = {
   arcNetwork:       "https://arc.network",
   apexiswap:        "https://www.apexiswap.com",
   circleDev:        "https://developers.circle.com",
-  protocol_fee_bps: 10,  // 0.1% = 10 basis points
+  protocol_fee_bps: 10,
 } as const
 
 // ─────────────────────────────────────────────────────────────────────────────
-// COMPLIANCE — OFAC SCREENING
+// COMPLIANCE
 // ─────────────────────────────────────────────────────────────────────────────
 export const COMPLIANCE = {
   sdnListUrl: "https://www.treasury.gov/ofac/downloads/sdn.csv",
 } as const
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STREAMING — SABLIER V2 (Phase 2)
+// SABLIER V2
 // ─────────────────────────────────────────────────────────────────────────────
 export const SABLIER = {
   LockupLinear:  "" as `0x${string}`,
