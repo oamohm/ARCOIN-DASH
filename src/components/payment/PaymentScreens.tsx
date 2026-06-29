@@ -258,7 +258,7 @@ export function ReceiveScreen({ onNavigate }: { onNavigate: (s: string) => void 
           Scan or Copy Address
         </p>
 
-        {/* QR Code */}
+        {/* QRCodeSVG */}
         {address && (
           <div style={{
             background: "white", padding: "16px", borderRadius: "16px",
