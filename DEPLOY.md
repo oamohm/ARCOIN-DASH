@@ -1,242 +1,209 @@
-# ARCOIN â€” Deployment Guide
+# ARCOIN — Deployment Guide
 
-## Prerequisites (à¤à¤• à¤¬à¤¾à¤° setup à¤•à¤°à¥‡à¤‚)
+> **Auth:** Circle Developer-Controlled Wallets — only `CIRCLE_API_KEY` required. No Privy. No WalletConnect.
+
+---
+
+## Prerequisites
 
 ```bash
-# 1. Node.js 18+ à¤”à¤° npm confirm à¤•à¤°à¥‡à¤‚
 node --version   # v18+
-npm --version    # 9+
-
-# 2. Project install à¤•à¤°à¥‡à¤‚
+npm --version    # v9+
 npm install
-
-# 3. Hardhat install à¤•à¤°à¥‡à¤‚ (contracts à¤•à¥‡ à¤²à¤¿à¤)
 npm install --save-dev hardhat @nomicfoundation/hardhat-toolbox
 npm install @openzeppelin/contracts
 ```
 
 ---
 
-## Step 1: Environment Setup
+## Step 1: Get Circle API Key
+
+1. Go to [console.circle.com](https://console.circle.com)
+2. Sign up / log in → **Developer** tab → **API Keys**
+3. Create a new API key → copy it
+4. Under **Entity Secret** → generate and copy your entity secret
+
+---
+
+## Step 2: Environment Setup
 
 ```bash
-# .env.local à¤¬à¤¨à¤¾à¤à¤‚
 cp .env.example .env.local
 ```
 
-`.env.local` à¤®à¥‡à¤‚ à¤¯à¤¹ fill à¤•à¤°à¥‡à¤‚:
+Fill in `.env.local`:
 ```env
-# Privy Dashboard à¤¸à¥‡: https://dashboard.privy.io
-NEXT_PUBLIC_PRIVY_APP_ID=clxxxxxxxxxxxxxxxxx
+# Circle API — server-side only (NEVER use NEXT_PUBLIC_ prefix)
+CIRCLE_API_KEY=TEST_API_KEY:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+CIRCLE_ENTITY_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+CIRCLE_WALLET_SET_ID=         # filled in Step 3
+CIRCLE_ENV=sandbox             # "sandbox" for testnet, "production" for mainnet
 
-# Arc Testnet wallet à¤•à¥€ private key
-# âš ï¸ TESTNET ONLY â€” à¤•à¤­à¥€ mainnet key à¤¯à¤¹à¤¾à¤ à¤®à¤¤ à¤¡à¤¾à¤²à¥‡à¤‚
-DEPLOYER_PRIVATE_KEY=0xabc123...
-
-# Treasury à¤•à¥‡ à¤²à¤¿à¤ multisig address (testnet à¤ªà¤° deployer address à¤ à¥€à¤• à¤¹à¥ˆ)
-TREASURY_MULTISIG=0xYourWalletAddress
-DEV_FUND=0xYourWalletAddress
-LIQUIDITY_RESERVE=0xYourWalletAddress
-COMMUNITY_MULTISIG=0xYourWalletAddress
-
-# Claude API (AI Help feature à¤•à¥‡ à¤²à¤¿à¤)
+# Anthropic — AI Help feature (optional)
 ANTHROPIC_API_KEY=sk-ant-xxxxx
+
+# App
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_APP_ENV=development
+
+# Contracts (auto-filled by post-deploy-patch.ts after Step 5)
+DEPLOYER_PRIVATE_KEY=0xabc123...
+TREASURY_MULTISIG=0xYourAddress
+DEV_FUND=0xYourAddress
+LIQUIDITY_RESERVE=0xYourAddress
+COMMUNITY_MULTISIG=0xYourAddress
 ```
 
 ---
 
-## Step 2: Get Testnet USDC (Gas à¤•à¥‡ à¤²à¤¿à¤)
-
-```
-1. https://faucet.circle.com à¤–à¥‹à¤²à¥‡à¤‚
-2. Arc Testnet select à¤•à¤°à¥‡à¤‚
-3. Deployer wallet address paste à¤•à¤°à¥‡à¤‚
-4. 10 USDC receive à¤•à¤°à¥‡à¤‚
-```
-
----
-
-## Step 3: Deploy Smart Contracts
+## Step 3: Create Circle Wallet Set (one-time setup)
 
 ```bash
-# à¤¸à¤­à¥€ 5 contracts à¤à¤• command à¤¸à¥‡ deploy à¤¹à¥‹à¤‚à¤—à¥‡:
+node -e "
+const key = process.env.CIRCLE_API_KEY;
+fetch('https://api.circle.com/v1/w3s/walletSets', {
+  method: 'POST',
+  headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: 'Arcoin Users' })
+})
+.then(r => r.json())
+.then(d => console.log('WALLET SET ID:', d.data?.walletSet?.id))
+"
+```
+
+Copy the Wallet Set ID → paste into `.env.local` as `CIRCLE_WALLET_SET_ID`.
+
+---
+
+## Step 4: Get Testnet USDC (for contract deployment gas)
+
+1. Go to [faucet.circle.com](https://faucet.circle.com)
+2. Select **Arc Testnet**
+3. Paste your deployer wallet address
+4. Receive 10 USDC
+
+---
+
+## Step 5: Deploy Smart Contracts
+
+```bash
+# Deploy all 4 contracts in one command
 npx hardhat run contracts/scripts/deploy-all.ts --network arc-testnet
+
+# Auto-patch deployed addresses into constants.ts
+npx ts-node contracts/scripts/post-deploy-patch.ts
 ```
 
 **Expected output:**
 ```
-â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
-â•‘      ARCOIN â€” FULL CONTRACT DEPLOYMENT           â•‘
-â• â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•£
-â•‘  Network:    Arc Testnet (5042002)               â•‘
-â•‘  Deployer:   0xAbCd...                           â•‘
-â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-
-â–º [1/5] Deploying ArcoinRegistry (ArcID)...
-  âœ“ Registry:      0x...
-
-â–º [2/5] Deploying ArcoinTreasury...
-  âœ“ Treasury:      0x...
-
-â–º [3/5] Deploying ArcoinPaymentRouter...
-  âœ“ PaymentRouter: 0x...
-
-â–º [4/5] Configuring Treasury â†’ approve PaymentRouter...
-  âœ“ PaymentRouter approved as fee collector
-
-â–º [5/5] Deploying Sablier V2...
-  âœ“ LockupLinear:  0x...
-  âœ“ LockupDynamic: 0x...
-
-Saved to: contracts/deployments/arc-testnet.json
+✓ ArcoinRegistry     deployed → 0xABCD...
+✓ ArcoinTreasury     deployed → 0x1234...
+✓ ArcoinPaymentRouter deployed → 0x5678...
+✓ constants.ts patched with deployed addresses
 ```
 
 ---
 
-## Step 4: Auto-patch constants.ts
-
-```bash
-# Deployment addresses à¤•à¥‹ constants.ts à¤®à¥‡à¤‚ auto-inject à¤•à¤°à¥‡à¤‚
-npx ts-node contracts/scripts/post-deploy-patch.ts
-```
-
----
-
-## Step 5: Verify Contracts on Blockscout
-
-```bash
-# Registry verify à¤•à¤°à¥‡à¤‚
-npx hardhat verify --network arc-testnet <REGISTRY_ADDR> \
-  "0x3600000000000000000000000000000000000000" \
-  "<DEPLOYER_ADDR>" "<DEPLOYER_ADDR>"
-
-# Treasury verify à¤•à¤°à¥‡à¤‚
-npx hardhat verify --network arc-testnet <TREASURY_ADDR> \
-  "0x3600000000000000000000000000000000000000" \
-  "<DEPLOYER_ADDR>" "<DEPLOYER_ADDR>" "<DEPLOYER_ADDR>" "<DEPLOYER_ADDR>"
-
-# PaymentRouter verify à¤•à¤°à¥‡à¤‚
-npx hardhat verify --network arc-testnet <ROUTER_ADDR> \
-  "0x3600000000000000000000000000000000000000" \
-  "<TREASURY_ADDR>" "<DEPLOYER_ADDR>"
-```
-
----
-
-## Step 6: Test App Locally
+## Step 6: Run Locally
 
 ```bash
 npm run dev
-# http://localhost:3000 à¤–à¥‹à¤²à¥‡à¤‚
+# → http://localhost:3000
 ```
 
-Test checklist:
-```
-â˜ MetaMask â†’ Arc Testnet (5042002) â†’ Connect
-â˜ Balance display (faucet.circle.com à¤¸à¥‡ USDC à¤²à¥‡à¤‚)
-â˜ Send 1 USDC to another address
-â˜ Blockscout link à¤•à¤¾à¤® à¤•à¤° à¤°à¤¹à¤¾ à¤¹à¥ˆ
-â˜ ArcID register (alice.arc)
-â˜ Stream create à¤•à¤°à¥‡à¤‚ (5 USDC, 7 days)
-â˜ Audit CSV export
-â˜ AI Help à¤®à¥‡à¤‚ à¤¸à¤µà¤¾à¤² à¤ªà¥‚à¤›à¥‡à¤‚
+How it works:
+- User enters email / user ID on ConnectScreen
+- Frontend calls `POST /api/wallet/create` with `{ userId }`
+- Server calls Circle API → creates developer-controlled wallet
+- Wallet address returned → stored in localStorage + state
+- All USDC transactions are signed by Circle on the server
+
+---
+
+## Step 7: Verify Contracts on Blockscout
+
+```bash
+npx hardhat verify --network arc-testnet <REGISTRY_ADDR> \
+  "0x3600000000000000000000000000000000000000" "<TREASURY_ADDR>" "<DEPLOYER_ADDR>"
+
+npx hardhat verify --network arc-testnet <TREASURY_ADDR> \
+  "0x3600000000000000000000000000000000000000" \
+  "<DEPLOYER_ADDR>" "<DEPLOYER_ADDR>" "<DEPLOYER_ADDR>" "<DEPLOYER_ADDR>" "<DEPLOYER_ADDR>"
+
+npx hardhat verify --network arc-testnet <ROUTER_ADDR> \
+  "0x3600000000000000000000000000000000000000" "<TREASURY_ADDR>" "<DEPLOYER_ADDR>"
 ```
 
 ---
 
-## Step 7: GitHub Push
+## Step 8: Deploy to Vercel
 
+**Option A — Dashboard:**
+1. [vercel.com/new](https://vercel.com/new) → Import `oamohm/ARCOIN-DASH`
+2. Add environment variables:
+   ```
+   CIRCLE_API_KEY        → from console.circle.com
+   CIRCLE_ENTITY_SECRET  → from console.circle.com
+   CIRCLE_WALLET_SET_ID  → from Step 3
+   CIRCLE_ENV            → production
+   ANTHROPIC_API_KEY     → optional
+   NEXT_PUBLIC_APP_URL   → https://arcoin-dash.vercel.app
+   NEXT_PUBLIC_APP_ENV   → production
+   ```
+3. Click **Deploy**
+
+**Option B — CLI:**
 ```bash
-# Repo init (à¤…à¤—à¤° à¤¨à¤¹à¥€à¤‚ à¤¹à¥ˆ)
-git init
-git add .
-git commit -m "feat: Arcoin Phase 1+2 complete"
-git branch -M main
-
-# GitHub à¤ªà¤° repo à¤¬à¤¨à¤¾à¤à¤‚, à¤«à¤¿à¤°:
-git remote add origin https://github.com/YOUR_USERNAME/arcoin.git
-git push -u origin main
-```
-
-**âš ï¸ .gitignore confirm à¤•à¤°à¥‡à¤‚:**
-```bash
-cat .gitignore | grep "env.local"
-# Output: .env.local â† à¤¯à¤¹ line à¤¹à¥‹à¤¨à¥€ à¤šà¤¾à¤¹à¤¿à¤
-```
-
----
-
-## Step 8: Vercel Deploy
-
-```bash
-# Option A: Vercel CLI
 npm install -g vercel
 vercel --prod
-
-# Option B: Vercel Dashboard
-# 1. https://vercel.com/new
-# 2. Import GitHub repo
-# 3. Environment Variables add à¤•à¤°à¥‡à¤‚:
-#    NEXT_PUBLIC_PRIVY_APP_ID = clxxxxxxx
-#    ANTHROPIC_API_KEY        = sk-ant-xxxxx
-# 4. Deploy
-```
-
-**Vercel Environment Variables (Dashboard à¤®à¥‡à¤‚):**
-```
-NEXT_PUBLIC_PRIVY_APP_ID      â†’ Privy Dashboard à¤¸à¥‡
-ANTHROPIC_API_KEY              â†’ console.anthropic.com à¤¸à¥‡
-NEXT_PUBLIC_APP_URL            â†’ https://arcoin.vercel.app
-NEXT_PUBLIC_APP_ENV            â†’ production
 ```
 
 ---
 
-## Deployment Checklist (Final)
+## Deployment Checklist
 
 ```
+CIRCLE SETUP
+☐ CIRCLE_API_KEY set (sandbox or production)
+☐ CIRCLE_ENTITY_SECRET set
+☐ CIRCLE_WALLET_SET_ID created and set
+
 CONTRACTS
-â˜ ArcoinRegistry deployed + verified
-â˜ ArcoinTreasury deployed + verified
-â˜ ArcoinPaymentRouter deployed + verified
-â˜ Sablier LockupLinear deployed
-â˜ Sablier LockupDynamic deployed
-â˜ constants.ts patched (post-deploy-patch.ts)
+☐ Deployer wallet has testnet USDC
+☐ All 4 contracts deployed (deploy-all.ts)
+☐ constants.ts patched (post-deploy-patch.ts)
+☐ Contracts verified on Blockscout
 
 FRONTEND
-â˜ npm run dev â†’ localhost:3000 à¤•à¤¾à¤® à¤•à¤°à¤¤à¤¾ à¤¹à¥ˆ
-â˜ Wallet connect à¤•à¤¾à¤® à¤•à¤°à¤¤à¤¾ à¤¹à¥ˆ
-â˜ Balance à¤¦à¤¿à¤–à¤¤à¤¾ à¤¹à¥ˆ
-â˜ Send à¤•à¤¾à¤® à¤•à¤°à¤¤à¤¾ à¤¹à¥ˆ + Blockscout link
+☐ .env.local filled (never committed)
+☐ npm run dev works locally
+☐ /api/wallet/create returns a wallet address
+☐ USDC balance displays correctly
 
-DEPLOY
-â˜ .env.local â†’ .gitignore à¤®à¥‡à¤‚ à¤¹à¥ˆ â† CRITICAL
-â˜ GitHub push complete
-â˜ Vercel env vars set
-â˜ Vercel deploy success
-â˜ Production URL test à¤•à¤¿à¤¯à¤¾
-
-POST-DEPLOY
-â˜ ArcoinEscrow deploy à¤•à¤°à¥‡à¤‚ (Phase 3 à¤•à¥‡ à¤²à¤¿à¤)
-â˜ Ownership to multisig transfer à¤•à¤°à¥‡à¤‚
+VERCEL
+☐ All env vars set in Vercel Dashboard
+☐ CIRCLE_API_KEY uses production key for mainnet
+☐ Deployed and smoke-tested
 ```
 
 ---
 
-## Addresses Reference (fill à¤•à¤°à¥‡à¤‚ after deploy)
+## API Routes (Circle integration)
 
-```
-Arc Testnet (5042002)
-USDC:           0x3600000000000000000000000000000000000000
-APEXISWAP:      0x437b1aBf6e5a69548849b15EC35f83A73Fa1E28F
-Blockscout:     https://atlas.blockscout.com
-Faucet:         https://faucet.circle.com
+| Route | Method | Description |
+|---|---|---|
+| `/api/wallet/create` | POST | Create Circle wallet for a user ID |
+| `/api/wallet/me` | GET | Get wallet address + USDC balance |
+| `/api/wallet/send` | POST | Send USDC via Circle API |
+| `/api/ai-help` | POST | Claude AI assistant (Phase 5) |
 
-ARCOIN CONTRACTS (after deploy):
-Registry:       0x________________
-Treasury:       0x________________
-PaymentRouter:  0x________________
-LockupLinear:   0x________________
-LockupDynamic:  0x________________
-Escrow:         (Phase 3)
-```
+All Circle API calls are server-side only. `CIRCLE_API_KEY` is never exposed to the browser.
+
+---
+
+## Security Notes
+
+- `CIRCLE_API_KEY` and `CIRCLE_ENTITY_SECRET` must NEVER have `NEXT_PUBLIC_` prefix
+- `.env.local` is gitignored — never commit it
+- Use Circle **sandbox** keys for testnet, **production** keys for mainnet
+- Rotate entity secret immediately if leaked

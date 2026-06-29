@@ -1,63 +1,126 @@
 "use client"
 /**
- * ARCOIN â€” providers.tsx
- * Root provider tree. Wraps entire app.
- * Order matters: Privy â†’ QueryClient â†’ WagmiProvider
+ * ARCOIN — providers.tsx
+ * Root provider tree — Circle Developer-Controlled Wallets (no Privy / no WalletConnect)
+ *
+ * Architecture:
+ *   • Wallets are created server-side via Circle API (POST /api/wallet/create)
+ *   • Frontend reads wallet address + balance from /api/wallet/me
+ *   • On-chain reads use viem directly with the public Arc RPC
+ *   • Transactions are signed server-side by Circle, frontend only builds the payload
  */
 
-import { PrivyProvider }                     from "@privy-io/react-auth"
-import { WagmiProvider }                     from "@privy-io/wagmi"
-import { QueryClient, QueryClientProvider }  from "@tanstack/react-query"
-import { createConfig }                      from "@wagmi/core"
-import { arcTestnet, arcTransport }          from "@/lib/chains"
-import { ARC_CHAIN_ID }                      from "@/lib/constants"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { createPublicClient, http }          from "viem"
+import { createContext, useContext, useState, useEffect, ReactNode } from "react"
+import { arcTestnet }                        from "@/lib/chains"
 
-const wagmiConfig = createConfig({
-  chains:     [arcTestnet],
-  transports: { [ARC_CHAIN_ID]: arcTransport },
+// ─────────────────────────────────────────────────────────────────────────────
+// Public viem client — read-only, no wallet needed
+// ─────────────────────────────────────────────────────────────────────────────
+export const publicClient = createPublicClient({
+  chain:     arcTestnet,
+  transport: http("https://rpc.testnet.arc.network"),
 })
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Circle Wallet Context
+// ─────────────────────────────────────────────────────────────────────────────
+interface CircleWallet {
+  walletId:  string
+  address:   string
+  state:     string
+}
+
+interface CircleWalletCtx {
+  wallet:     CircleWallet | null
+  loading:    boolean
+  error:      string | null
+  createWallet: (userId: string) => Promise<void>
+  clearWallet:  () => void
+}
+
+const CircleWalletContext = createContext<CircleWalletCtx>({
+  wallet: null, loading: false, error: null,
+  createWallet: async () => {}, clearWallet: () => {},
+})
+
+export function useCircleWallet() {
+  return useContext(CircleWalletContext)
+}
+
+function CircleWalletProvider({ children }: { children: ReactNode }) {
+  const [wallet,  setWallet]  = useState<CircleWallet | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState<string | null>(null)
+
+  // Restore wallet from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem("arcoin_wallet")
+    if (stored) {
+      try { setWallet(JSON.parse(stored)) } catch {}
+    }
+  }, [])
+
+  const createWallet = async (userId: string) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch("/api/wallet/create", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ userId }),
+      })
+      if (!res.ok) {
+        const { error } = await res.json()
+        throw new Error(error ?? "Wallet creation failed")
+      }
+      const data: CircleWallet = await res.json()
+      setWallet(data)
+      localStorage.setItem("arcoin_wallet", JSON.stringify(data))
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Unknown error"
+      setError(msg)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const clearWallet = () => {
+    setWallet(null)
+    localStorage.removeItem("arcoin_wallet")
+  }
+
+  return (
+    <CircleWalletContext.Provider value={{ wallet, loading, error, createWallet, clearWallet }}>
+      {children}
+    </CircleWalletContext.Provider>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// React Query client
+// ─────────────────────────────────────────────────────────────────────────────
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime:    12_000,   // 12s â€” matches balance refresh interval
-      gcTime:       60_000,
-      retry:        2,
-      retryDelay:   (n) => Math.min(1000 * 2 ** n, 10_000),
+      staleTime:  12_000,   // 12s — matches balance refresh interval
+      gcTime:     60_000,
+      retry:      2,
+      retryDelay: (n) => Math.min(1000 * 2 ** n, 10_000),
     },
   },
 })
 
-export function Providers({ children }: { children: React.ReactNode }) {
+// ─────────────────────────────────────────────────────────────────────────────
+// Root Providers
+// ─────────────────────────────────────────────────────────────────────────────
+export function Providers({ children }: { children: ReactNode }) {
   return (
-    <PrivyProvider
-      appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID!}
-      config={{
-        loginMethods: ["email", "wallet"],
-        appearance: {
-          theme:       "dark",
-          accentColor: "#22D3EE",   // Arc cyan â€” terminal aesthetic
-          logo:        "/logo.svg",
-          landingHeader: "Arcoin â€” Arc Network",
-          loginMessage:  "Connect to start transacting on Arc",
-        },
-        defaultChain:     arcTestnet,
-        supportedChains: [arcTestnet],
-        embeddedWallets: {
-          createOnLogin:         "users-without-wallets",
-          requireUserPasswordOnCreate: false,
-          noPromptOnSignature:   false,
-        },
-        mfa: {
-          noPromptOnMfaRequired: false,
-        },
-      }}
-    >
-      <QueryClientProvider client={queryClient}>
-        <WagmiProvider config={wagmiConfig}>
-          {children}
-        </WagmiProvider>
-      </QueryClientProvider>
-    </PrivyProvider>
+    <QueryClientProvider client={queryClient}>
+      <CircleWalletProvider>
+        {children}
+      </CircleWalletProvider>
+    </QueryClientProvider>
   )
 }
